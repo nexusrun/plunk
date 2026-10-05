@@ -10,7 +10,11 @@ echo "Running database migrations..."
 /app/node_modules/.bin/prisma migrate deploy --schema=/app/packages/db/prisma/schema.prisma
 
 # Single-host mode: everything is served from PUBLIC_URL (e.g. https://your-app.nexusai.run).
-# Dashboard at /, API at /api. Without PUBLIC_URL, fall back to the *_DOMAIN based setup.
+# Dashboard at /, API at /api. If API_DOMAIN is set instead, use the *_DOMAIN based setup.
+# Default to the NEXUS URL for this app unless domain-based routing was configured explicitly
+if [ -z "$PUBLIC_URL" ] && [ -z "$API_DOMAIN" ]; then
+  PUBLIC_URL="https://plunk.nexusai.run"
+fi
 if [ -n "$PUBLIC_URL" ]; then
   PUBLIC_URL="${PUBLIC_URL%/}"
   export API_URI="${PUBLIC_URL}/api"

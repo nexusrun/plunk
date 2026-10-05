@@ -7,7 +7,7 @@
     "NODE_ENV": { "value": "production" },
     "JWT_SECRET": { "generator": "secret" },
 
-    "PUBLIC_URL": { "description": "Your NEXUS app URL, exactly as shown after deploy, with no trailing slash — e.g. https://your-app.nexusai.run. The dashboard is served at / and the API at /api." },
+    "PUBLIC_URL": { "value": "https://plunk.nexusai.run", "description": "Public URL of this deployment, with no trailing slash. Defaults to the NEXUS URL for the app name 'plunk'; change it if NEXUS gave your deployment a different URL or you use a custom domain. Dashboard is served at / and the API at /api." },
 
     "AWS_SES_REGION": { "value": "us-east-1", "description": "AWS SES region used to send email." },
     "AWS_SES_ACCESS_KEY_ID": { "description": "AWS SES access key ID — https://console.aws.amazon.com/iam/" },
