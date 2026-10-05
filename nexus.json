@@ -1,0 +1,80 @@
+{
+  "name": "plunk",
+  "description": "Open-source email platform for transactional emails, campaigns and workflows.",
+  "repoUrl": "https://github.com/useplunk/plunk",
+  "repoBranch": "next",
+  "dockerfile": "Dockerfile",
+  "port": 80,
+  "environment": "PRODUCTION",
+  "healthCheck": {
+    "enabled": true,
+    "path": "/"
+  },
+  "services": ["postgresql", "redis"],
+  "envVars": {
+    "JWT_SECRET": {
+      "description": "Secret used to sign JWTs. Generate a long random string.",
+      "required": true,
+      "generate": "secret"
+    },
+    "API_URI": {
+      "description": "Public URL of the API (e.g. https://api.example.com)",
+      "required": true
+    },
+    "DASHBOARD_URI": {
+      "description": "Public URL of the dashboard (e.g. https://app.example.com)",
+      "required": true
+    },
+    "LANDING_URI": {
+      "description": "Public URL of the landing page (e.g. https://www.example.com)",
+      "required": true
+    },
+    "AWS_SES_REGION": {
+      "description": "AWS SES region",
+      "default": "us-east-1",
+      "required": true
+    },
+    "AWS_SES_ACCESS_KEY_ID": {
+      "description": "AWS SES access key ID",
+      "required": true
+    },
+    "AWS_SES_SECRET_ACCESS_KEY": {
+      "description": "AWS SES secret access key",
+      "required": true,
+      "secret": true
+    },
+    "SES_CONFIGURATION_SET": {
+      "description": "SES configuration set with tracking",
+      "default": "plunk-configuration-set"
+    },
+    "SES_CONFIGURATION_SET_NO_TRACKING": {
+      "description": "SES configuration set without tracking",
+      "default": "plunk-no-tracking-configuration-set"
+    },
+    "S3_ENDPOINT": {
+      "description": "S3-compatible storage endpoint for uploads",
+      "required": true
+    },
+    "S3_ACCESS_KEY_ID": {
+      "description": "S3 access key ID",
+      "required": true
+    },
+    "S3_ACCESS_KEY_SECRET": {
+      "description": "S3 secret access key",
+      "required": true,
+      "secret": true
+    },
+    "S3_BUCKET": {
+      "description": "S3 bucket name",
+      "default": "uploads"
+    },
+    "S3_PUBLIC_URL": {
+      "description": "Public URL for the S3 bucket",
+      "required": true
+    },
+    "DISABLE_SIGNUPS": {
+      "description": "Set to true to block new signups",
+      "default": "false"
+    }
+  }
+}
