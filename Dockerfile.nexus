@@ -1,58 +1,32 @@
 # Slim Dockerfile for deploying Plunk on NEXUS AI.
-# Same as the main Dockerfile but without the wiki/docs app and its build steps.
+# Same as the main Dockerfile but without the wiki/docs app, and with as few
+# instructions as possible (NEXUS limits Dockerfiles to 100 instructions).
 # Runs API, worker, SMTP, web dashboard and landing page behind nginx (port 80).
 
 # ============================================
-# Stage 1: Dependencies (for building)
+# Stage 1: Collect workspace manifests (keeps the dependency layer cacheable)
+# ============================================
+FROM node:20-slim AS manifests
+WORKDIR /src
+COPY . .
+# The wiki is never built here, so drop its postinstall (fumadocs-mdx needs wiki sources)
+RUN mkdir /m && \
+    node -e "const fs=require('fs');const f='apps/wiki/package.json';const p=JSON.parse(fs.readFileSync(f,'utf8'));delete p.scripts.postinstall;fs.writeFileSync(f,JSON.stringify(p,null,2))" && \
+    cp -r .yarnrc.yml .yarn yarn.lock /m/ && \
+    find . -name package.json -not -path "*/node_modules/*" -not -path "./.yarn/*" -exec cp --parents {} /m/ \;
+
+# ============================================
+# Stage 2: Dependencies (dev + production)
 # ============================================
 FROM --platform=$BUILDPLATFORM node:20-slim AS deps
 WORKDIR /app
-
 RUN corepack enable && corepack prepare yarn@4.9.1 --activate
-
-COPY .yarnrc.yml ./
-COPY .yarn/releases ./.yarn/releases
-COPY package.json yarn.lock ./
-
-# Every workspace manifest must be present or `yarn install --immutable` fails
-COPY apps/api/package.json ./apps/api/
-COPY apps/mcp/package.json ./apps/mcp/
-COPY apps/smtp/package.json ./apps/smtp/
-COPY apps/web/package.json ./apps/web/
-COPY apps/landing/package.json ./apps/landing/
-COPY apps/wiki/package.json ./apps/wiki/
-COPY packages/db/package.json ./packages/db/
-COPY packages/ui/package.json ./packages/ui/
-COPY packages/shared/package.json ./packages/shared/
-COPY packages/types/package.json ./packages/types/
-COPY packages/email/package.json ./packages/email/
-COPY packages/typescript-config/package.json ./packages/typescript-config/
-COPY packages/eslint-config/package.json ./packages/eslint-config/
-
-# The wiki is never built here, so drop its postinstall (fumadocs-mdx needs wiki sources)
-RUN node -e "const fs=require('fs');const f='apps/wiki/package.json';const p=JSON.parse(fs.readFileSync(f,'utf8'));delete p.scripts.postinstall;fs.writeFileSync(f,JSON.stringify(p,null,2))"
-
+COPY --from=manifests /m ./
 RUN --mount=type=cache,target=/root/.yarn/berry/cache,sharing=locked \
     yarn install --immutable
 
-# ============================================
-# Stage 2: Production dependencies for API/SMTP
-# ============================================
-FROM --platform=$BUILDPLATFORM node:20-slim AS prod-deps
-WORKDIR /app
-
-RUN corepack enable && corepack prepare yarn@4.9.1 --activate
-
-COPY .yarnrc.yml ./
-COPY .yarn/releases ./.yarn/releases
-COPY package.json yarn.lock ./
-COPY apps/api/package.json ./apps/api/
-COPY apps/smtp/package.json ./apps/smtp/
-COPY packages/db/package.json ./packages/db/
-COPY packages/shared/package.json ./packages/shared/
-COPY packages/types/package.json ./packages/types/
-COPY packages/email/package.json ./packages/email/
-
+# Production-only dependencies for API/SMTP
+FROM deps AS prod-deps
 RUN --mount=type=cache,target=/root/.yarn/berry/cache,sharing=locked \
     yarn workspaces focus api smtp --production
 
@@ -60,60 +34,55 @@ RUN --mount=type=cache,target=/root/.yarn/berry/cache,sharing=locked \
 # Stage 3: Builder
 # ============================================
 FROM node:20-slim AS builder
-
-# Placeholder URLs baked into the build; replaced at container startup
-ARG API_URI=https://next-api.useplunk.com
-ARG DASHBOARD_URI=https://next-app.useplunk.com
-ARG LANDING_URI=https://www.useplunk.com
-ARG WIKI_URI=https://docs.useplunk.com
-
-ENV API_URI=${API_URI} \
-    DASHBOARD_URI=${DASHBOARD_URI} \
-    LANDING_URI=${LANDING_URI} \
-    WIKI_URI=${WIKI_URI} \
-    NEXT_PUBLIC_API_URI=${API_URI} \
-    NEXT_PUBLIC_DASHBOARD_URI=${DASHBOARD_URI} \
-    NEXT_PUBLIC_LANDING_URI=${LANDING_URI} \
-    NEXT_PUBLIC_WIKI_URI=${WIKI_URI}
-
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
-RUN corepack enable && corepack prepare yarn@4.9.1 --activate
+# Placeholder URLs baked into the build; replaced at container startup
+ENV API_URI=https://next-api.useplunk.com \
+    DASHBOARD_URI=https://next-app.useplunk.com \
+    LANDING_URI=https://www.useplunk.com \
+    WIKI_URI=https://docs.useplunk.com \
+    NEXT_PUBLIC_API_URI=https://next-api.useplunk.com \
+    NEXT_PUBLIC_DASHBOARD_URI=https://next-app.useplunk.com \
+    NEXT_PUBLIC_LANDING_URI=https://www.useplunk.com \
+    NEXT_PUBLIC_WIKI_URI=https://docs.useplunk.com
 
+RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/* && \
+    corepack enable && corepack prepare yarn@4.9.1 --activate
+
+COPY --from=manifests /m ./
 COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/.yarn ./.yarn
-COPY --from=deps /app/.yarnrc.yml ./
-COPY --from=deps /app/package.json ./
-COPY --from=deps /app/yarn.lock ./
-
 COPY turbo.json ./
 COPY docker/generate-url-manifest.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/generate-url-manifest.sh
-
-# Shared packages
 COPY packages ./packages
-RUN yarn workspace @plunk/db db:generate
-RUN yarn turbo build --filter="@plunk/*"
+RUN chmod +x /usr/local/bin/generate-url-manifest.sh && \
+    yarn workspace @plunk/db db:generate && \
+    yarn turbo build --filter="@plunk/*"
 
-# API + SMTP
-COPY apps/api ./apps/api
-COPY apps/smtp ./apps/smtp
-RUN yarn turbo build --filter=api --filter=smtp
-
-# Web dashboard
-COPY apps/web ./apps/web
-RUN yarn turbo build --filter=web && \
+COPY apps ./apps
+RUN yarn turbo build --filter=api --filter=smtp --filter=web --filter=landing && \
     yarn workspace web sitemap && \
-    generate-url-manifest.sh web /app/apps/web
-
-# Landing page
-COPY apps/landing ./apps/landing
-RUN yarn turbo build --filter=landing && \
+    generate-url-manifest.sh web /app/apps/web && \
     yarn workspace landing sitemap && \
     generate-url-manifest.sh landing /app/apps/landing
 
-RUN mkdir -p apps/web/public apps/landing/public
+# Assemble everything the runtime image needs under /out
+RUN mkdir -p /out apps/web/public apps/landing/public && \
+    cp --parents -r \
+      apps/api/dist apps/api/package.json apps/smtp/dist apps/smtp/package.json \
+      node_modules/.prisma node_modules/@prisma package.json \
+      packages/db/dist packages/db/package.json packages/db/prisma \
+      packages/shared/dist packages/shared/package.json \
+      packages/email/dist packages/email/package.json \
+      packages/types/dist packages/types/package.json \
+      /out/ && \
+    for a in web landing; do \
+      s=apps/$a/.next/standalone; \
+      mkdir -p /out/$s/apps/$a/.next/static /out/$s/apps/$a/public && \
+      cp -r $s/. /out/$s/ && \
+      cp -r apps/$a/public/. /out/$s/apps/$a/public/ && \
+      cp -r apps/$a/.next/static/. /out/$s/apps/$a/.next/static/ && \
+      cp apps/$a/.next/url-manifest.txt apps/$a/.next/sitemap-manifest.txt /out/$s/apps/$a/.next/; \
+    done
 
 # ============================================
 # Stage 4: Runtime
@@ -121,53 +90,18 @@ RUN mkdir -p apps/web/public apps/landing/public
 FROM node:20-alpine AS runner
 WORKDIR /app
 
-RUN apk add --no-cache openssl curl nginx gettext
-RUN npm install -g pm2@5.4.2 --no-audit
-
-RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 plunk
-RUN mkdir -p /var/log/nginx /var/lib/nginx /run/nginx && \
+RUN apk add --no-cache openssl curl nginx gettext && \
+    npm install -g pm2@5.4.2 --no-audit && \
+    addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 plunk && \
+    mkdir -p /var/log/nginx /var/lib/nginx /run/nginx && \
     chown -R plunk:nodejs /var/log/nginx /var/lib/nginx /run/nginx /etc/nginx
 
-# API and SMTP
-COPY --from=builder --chown=plunk:nodejs /app/apps/api/dist ./apps/api/dist
-COPY --from=builder --chown=plunk:nodejs /app/apps/smtp/dist ./apps/smtp/dist
-COPY --from=builder --chown=plunk:nodejs /app/apps/api/package.json ./apps/api/
-COPY --from=builder --chown=plunk:nodejs /app/apps/smtp/package.json ./apps/smtp/
+# Production node_modules first, then built output (merges in Prisma client + app files)
 COPY --from=prod-deps --chown=plunk:nodejs /app/node_modules ./node_modules
-COPY --from=builder --chown=plunk:nodejs /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder --chown=plunk:nodejs /app/node_modules/@prisma ./node_modules/@prisma
-
-# Built shared packages (+ Prisma schema for migrations)
-COPY --from=builder --chown=plunk:nodejs /app/packages/db/dist ./packages/db/dist
-COPY --from=builder --chown=plunk:nodejs /app/packages/db/package.json ./packages/db/package.json
-COPY --from=builder --chown=plunk:nodejs /app/packages/db/prisma ./packages/db/prisma
-COPY --from=builder --chown=plunk:nodejs /app/packages/shared/dist ./packages/shared/dist
-COPY --from=builder --chown=plunk:nodejs /app/packages/shared/package.json ./packages/shared/package.json
-COPY --from=builder --chown=plunk:nodejs /app/packages/email/dist ./packages/email/dist
-COPY --from=builder --chown=plunk:nodejs /app/packages/email/package.json ./packages/email/package.json
-COPY --from=builder --chown=plunk:nodejs /app/packages/types/dist ./packages/types/dist
-COPY --from=builder --chown=plunk:nodejs /app/packages/types/package.json ./packages/types/package.json
-COPY --from=builder --chown=plunk:nodejs /app/package.json ./
-
-# Web (Next.js standalone) + manifests for runtime URL replacement
-COPY --from=builder --chown=plunk:nodejs /app/apps/web/.next/standalone ./apps/web/.next/standalone
-COPY --from=builder --chown=plunk:nodejs /app/apps/web/public ./apps/web/.next/standalone/apps/web/public
-COPY --from=builder --chown=plunk:nodejs /app/apps/web/.next/static ./apps/web/.next/standalone/apps/web/.next/static
-COPY --from=builder --chown=plunk:nodejs /app/apps/web/.next/url-manifest.txt ./apps/web/.next/standalone/apps/web/.next/url-manifest.txt
-COPY --from=builder --chown=plunk:nodejs /app/apps/web/.next/sitemap-manifest.txt ./apps/web/.next/standalone/apps/web/.next/sitemap-manifest.txt
-
-# Landing (Next.js standalone) + manifests for runtime URL replacement
-COPY --from=builder --chown=plunk:nodejs /app/apps/landing/.next/standalone ./apps/landing/.next/standalone
-COPY --from=builder --chown=plunk:nodejs /app/apps/landing/public ./apps/landing/.next/standalone/apps/landing/public
-COPY --from=builder --chown=plunk:nodejs /app/apps/landing/.next/static ./apps/landing/.next/standalone/apps/landing/.next/static
-COPY --from=builder --chown=plunk:nodejs /app/apps/landing/.next/url-manifest.txt ./apps/landing/.next/standalone/apps/landing/.next/url-manifest.txt
-COPY --from=builder --chown=plunk:nodejs /app/apps/landing/.next/sitemap-manifest.txt ./apps/landing/.next/standalone/apps/landing/.next/sitemap-manifest.txt
-
-# nginx + startup scripts
-COPY --chown=plunk:nodejs docker/nginx/ /app/docker/nginx/
-COPY --chown=plunk:nodejs docker/replace-urls-optimized.sh /app/docker/
-COPY --chown=plunk:nodejs docker/nexus-entrypoint.sh /usr/local/bin/
-RUN chmod +x /app/docker/nginx/setup-nginx.sh /app/docker/replace-urls-optimized.sh /usr/local/bin/nexus-entrypoint.sh
+COPY --from=builder --chown=plunk:nodejs /out/ ./
+# nginx templates + startup scripts (see .dockerignore for what is included)
+COPY --chown=plunk:nodejs docker/ /app/docker/
+RUN chmod +x /app/docker/*.sh /app/docker/nginx/*.sh
 
 USER plunk
 
@@ -176,4 +110,4 @@ EXPOSE 80 465 587
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
   CMD curl -f http://localhost:80/ || exit 1
 
-ENTRYPOINT ["nexus-entrypoint.sh"]
+ENTRYPOINT ["/app/docker/nexus-entrypoint.sh"]
