@@ -1,80 +1,37 @@
 {
   "name": "plunk",
   "description": "Open-source email platform for transactional emails, campaigns and workflows.",
-  "repoUrl": "https://github.com/useplunk/plunk",
-  "repoBranch": "next",
   "dockerfile": "Dockerfile.nexus",
-  "port": 80,
-  "environment": "PRODUCTION",
-  "healthCheck": {
-    "enabled": true,
-    "path": "/"
-  },
-  "services": ["postgresql", "redis"],
-  "envVars": {
-    "JWT_SECRET": {
-      "description": "Secret used to sign JWTs. Generate a long random string.",
-      "required": true,
-      "generate": "secret"
-    },
-    "API_URI": {
-      "description": "Public URL of the API (e.g. https://api.example.com)",
-      "required": true
-    },
-    "DASHBOARD_URI": {
-      "description": "Public URL of the dashboard (e.g. https://app.example.com)",
-      "required": true
-    },
-    "LANDING_URI": {
-      "description": "Public URL of the landing page (e.g. https://www.example.com)",
-      "required": true
-    },
-    "AWS_SES_REGION": {
-      "description": "AWS SES region",
-      "default": "us-east-1",
-      "required": true
-    },
-    "AWS_SES_ACCESS_KEY_ID": {
-      "description": "AWS SES access key ID",
-      "required": true
-    },
-    "AWS_SES_SECRET_ACCESS_KEY": {
-      "description": "AWS SES secret access key",
-      "required": true,
-      "secret": true
-    },
-    "SES_CONFIGURATION_SET": {
-      "description": "SES configuration set with tracking",
-      "default": "plunk-configuration-set"
-    },
-    "SES_CONFIGURATION_SET_NO_TRACKING": {
-      "description": "SES configuration set without tracking",
-      "default": "plunk-no-tracking-configuration-set"
-    },
-    "S3_ENDPOINT": {
-      "description": "S3-compatible storage endpoint for uploads",
-      "required": true
-    },
-    "S3_ACCESS_KEY_ID": {
-      "description": "S3 access key ID",
-      "required": true
-    },
-    "S3_ACCESS_KEY_SECRET": {
-      "description": "S3 secret access key",
-      "required": true,
-      "secret": true
-    },
-    "S3_BUCKET": {
-      "description": "S3 bucket name",
-      "default": "uploads"
-    },
-    "S3_PUBLIC_URL": {
-      "description": "Public URL for the S3 bucket",
-      "required": true
-    },
-    "DISABLE_SIGNUPS": {
-      "description": "Set to true to block new signups",
-      "default": "false"
-    }
+  "services": ["postgres", "redis"],
+  "env": {
+    "NODE_ENV": { "value": "production" },
+    "JWT_SECRET": { "generator": "secret" },
+
+    "API_DOMAIN": { "description": "Domain for the API, e.g. api.example.com (point its DNS at this deployment)." },
+    "DASHBOARD_DOMAIN": { "description": "Domain for the dashboard, e.g. app.example.com (point its DNS at this deployment)." },
+    "LANDING_DOMAIN": { "description": "Domain for the landing page, e.g. www.example.com (point its DNS at this deployment)." },
+    "USE_HTTPS": { "value": "true", "description": "Set to false if the domains are served over plain HTTP." },
+
+    "AWS_SES_REGION": { "value": "us-east-1", "description": "AWS SES region used to send email." },
+    "AWS_SES_ACCESS_KEY_ID": { "description": "AWS SES access key ID — https://console.aws.amazon.com/iam/" },
+    "AWS_SES_SECRET_ACCESS_KEY": { "description": "AWS SES secret access key." },
+    "SES_CONFIGURATION_SET": { "value": "plunk-configuration-set" },
+    "SES_CONFIGURATION_SET_NO_TRACKING": { "value": "plunk-no-tracking-configuration-set" },
+
+    "S3_ENDPOINT": { "description": "S3-compatible storage endpoint for uploads (e.g. https://s3.us-east-1.amazonaws.com)." },
+    "S3_ACCESS_KEY_ID": { "description": "S3 access key ID." },
+    "S3_ACCESS_KEY_SECRET": { "description": "S3 secret access key." },
+    "S3_BUCKET": { "value": "uploads", "description": "S3 bucket name." },
+    "S3_PUBLIC_URL": { "description": "Public URL of the S3 bucket, e.g. https://uploads.example.com." },
+    "S3_FORCE_PATH_STYLE": { "value": "false", "description": "Set to true for MinIO and other path-style S3 servers." },
+
+    "DISABLE_SIGNUPS": { "value": "false", "description": "Optional. Set to true to block new signups (useful once your account exists)." },
+    "GITHUB_OAUTH_CLIENT": { "description": "Optional. GitHub OAuth client ID — https://github.com/settings/developers" },
+    "GITHUB_OAUTH_SECRET": { "description": "Optional. GitHub OAuth client secret." },
+    "GOOGLE_OAUTH_CLIENT": { "description": "Optional. Google OAuth client ID — https://console.cloud.google.com/" },
+    "GOOGLE_OAUTH_SECRET": { "description": "Optional. Google OAuth client secret." },
+    "SMTP_DOMAIN": { "description": "Optional. Domain for the SMTP relay (ports 465/587)." },
+    "NTFY_URL": { "description": "Optional. ntfy.sh topic URL for system notifications." },
+    "PLUNK_API_KEY": { "description": "Optional. Plunk API key to email users about critical events." }
   }
 }
