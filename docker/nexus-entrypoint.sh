@@ -9,8 +9,23 @@ export DIRECT_DATABASE_URL="${DIRECT_DATABASE_URL:-$DATABASE_URL}"
 echo "Running database migrations..."
 /app/node_modules/.bin/prisma migrate deploy --schema=/app/packages/db/prisma/schema.prisma
 
+# Single-host mode: everything is served from PUBLIC_URL (e.g. https://your-app.nexusai.run).
+# Dashboard at /, API at /api. Without PUBLIC_URL, fall back to the *_DOMAIN based setup.
+if [ -n "$PUBLIC_URL" ]; then
+  PUBLIC_URL="${PUBLIC_URL%/}"
+  export API_URI="${PUBLIC_URL}/api"
+  export DASHBOARD_URI="$PUBLIC_URL"
+  export LANDING_URI="$PUBLIC_URL"
+  export WIKI_URI="$PUBLIC_URL"
+  # The shared hostname is not ours alone, so never scope the auth cookie to its base domain
+  export COOKIE_DOMAIN="${COOKIE_DOMAIN:-host}"
+fi
+
 # Configure nginx and derive *_URI defaults from *_DOMAIN / USE_HTTPS
 . /app/docker/nginx/setup-nginx.sh
+if [ -n "$PUBLIC_URL" ]; then
+  envsubst '${NGINX_PORT}' < /app/docker/nginx/nginx.nexus.conf.template > /etc/nginx/conf.d/plunk.conf
+fi
 . /app/docker/replace-urls-optimized.sh
 
 replace_urls_in_app "web" "/app/apps/web/.next/standalone/apps/web"

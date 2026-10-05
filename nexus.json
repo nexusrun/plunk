@@ -7,10 +7,7 @@
     "NODE_ENV": { "value": "production" },
     "JWT_SECRET": { "generator": "secret" },
 
-    "API_DOMAIN": { "description": "Domain for the API, e.g. api.example.com (point its DNS at this deployment)." },
-    "DASHBOARD_DOMAIN": { "description": "Domain for the dashboard, e.g. app.example.com (point its DNS at this deployment)." },
-    "LANDING_DOMAIN": { "description": "Domain for the landing page, e.g. www.example.com (point its DNS at this deployment)." },
-    "USE_HTTPS": { "value": "true", "description": "Set to false if the domains are served over plain HTTP." },
+    "PUBLIC_URL": { "description": "Your NEXUS app URL, exactly as shown after deploy, with no trailing slash — e.g. https://your-app.nexusai.run. The dashboard is served at / and the API at /api." },
 
     "AWS_SES_REGION": { "value": "us-east-1", "description": "AWS SES region used to send email." },
     "AWS_SES_ACCESS_KEY_ID": { "description": "AWS SES access key ID — https://console.aws.amazon.com/iam/" },
@@ -30,7 +27,6 @@
     "GITHUB_OAUTH_SECRET": { "description": "Optional. GitHub OAuth client secret." },
     "GOOGLE_OAUTH_CLIENT": { "description": "Optional. Google OAuth client ID — https://console.cloud.google.com/" },
     "GOOGLE_OAUTH_SECRET": { "description": "Optional. Google OAuth client secret." },
-    "SMTP_DOMAIN": { "description": "Optional. Domain for the SMTP relay (ports 465/587)." },
     "NTFY_URL": { "description": "Optional. ntfy.sh topic URL for system notifications." },
     "PLUNK_API_KEY": { "description": "Optional. Plunk API key to email users about critical events." }
   }
