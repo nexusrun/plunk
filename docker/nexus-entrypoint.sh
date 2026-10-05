@@ -3,6 +3,9 @@ set -e
 
 # Slim entrypoint for Dockerfile.nexus (no wiki/docs)
 
+# NEXUS's PostgreSQL sidecar only injects DATABASE_URL; the Prisma schema also needs a direct URL
+export DIRECT_DATABASE_URL="${DIRECT_DATABASE_URL:-$DATABASE_URL}"
+
 echo "Running database migrations..."
 /app/node_modules/.bin/prisma migrate deploy --schema=/app/packages/db/prisma/schema.prisma
 
