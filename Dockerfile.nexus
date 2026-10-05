@@ -51,7 +51,9 @@ ENV API_URI=https://next-api.useplunk.com \
 RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/* && \
     corepack enable && corepack prepare yarn@4.9.1 --activate
 
-COPY --from=manifests /m ./
+# Root files only: apps/* manifests must NOT be present until the apps are copied, otherwise
+# turbo matches @plunk/mcp (apps/mcp, source not copied) with --filter="@plunk/*" and fails
+COPY .yarnrc.yml package.json yarn.lock ./
 COPY --from=deps /app/node_modules ./node_modules
 # .yarn includes install-state.gz, which yarn needs to run workspace commands
 COPY --from=deps /app/.yarn ./.yarn
