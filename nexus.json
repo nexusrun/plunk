@@ -3,7 +3,7 @@
   "description": "Open-source email platform for transactional emails, campaigns and workflows.",
   "repoUrl": "https://github.com/useplunk/plunk",
   "repoBranch": "next",
-  "dockerfile": "Dockerfile",
+  "dockerfile": "Dockerfile.nexus",
   "port": 80,
   "environment": "PRODUCTION",
   "healthCheck": {
