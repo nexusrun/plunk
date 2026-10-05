@@ -44,22 +44,26 @@ ENV API_URI=https://next-api.useplunk.com \
     NEXT_PUBLIC_API_URI=https://next-api.useplunk.com \
     NEXT_PUBLIC_DASHBOARD_URI=https://next-app.useplunk.com \
     NEXT_PUBLIC_LANDING_URI=https://www.useplunk.com \
-    NEXT_PUBLIC_WIKI_URI=https://docs.useplunk.com
+    NEXT_PUBLIC_WIKI_URI=https://docs.useplunk.com \
+    DATABASE_URL=postgresql://build:build@localhost:5432/build \
+    DIRECT_DATABASE_URL=postgresql://build:build@localhost:5432/build
 
 RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/* && \
     corepack enable && corepack prepare yarn@4.9.1 --activate
 
 COPY --from=manifests /m ./
 COPY --from=deps /app/node_modules ./node_modules
+# .yarn includes install-state.gz, which yarn needs to run workspace commands
+COPY --from=deps /app/.yarn ./.yarn
 COPY turbo.json ./
 COPY docker/generate-url-manifest.sh /usr/local/bin/
 COPY packages ./packages
-RUN chmod +x /usr/local/bin/generate-url-manifest.sh && \
-    yarn workspace @plunk/db db:generate && \
-    yarn turbo build --filter="@plunk/*"
+RUN chmod +x /usr/local/bin/generate-url-manifest.sh
+RUN yarn workspace @plunk/db db:generate
+RUN yarn turbo build --filter="@plunk/*" --concurrency=1 --output-logs=full
 
 COPY apps ./apps
-RUN yarn turbo build --filter=api --filter=smtp --filter=web --filter=landing && \
+RUN yarn turbo build --filter=api --filter=smtp --filter=web --filter=landing --concurrency=1 --output-logs=full && \
     yarn workspace web sitemap && \
     generate-url-manifest.sh web /app/apps/web && \
     yarn workspace landing sitemap && \
